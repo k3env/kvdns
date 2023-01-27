@@ -1,0 +1,4 @@
+node_modules
+.waypoint
+.env
+dist
