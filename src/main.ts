@@ -44,7 +44,8 @@ export async function main(): Promise<void> {
         if (Object.prototype.hasOwnProperty.call(records, id)) {
           const record = records[id] as DNSKV;
           const arecords = record.value.map((ip) => {
-            const newA: ARecord = { record: `${record.record}.${domain}`, addr: ip, ttl: 60 };
+            const name = record.record === '@' ? domain : `${record.record}.${domain}`;
+            const newA: ARecord = { record: name, addr: ip, ttl: 60 };
             return newA;
           });
 
@@ -62,7 +63,13 @@ export async function main(): Promise<void> {
       const response = Packet.createResponseFromRequest(req);
       const [question] = req.questions;
       const { name } = question;
+      let segs = name.split('.');
       const ips = dnsrecords.filter((v) => v.record === name);
+      while (ips.length === 0 && segs.length !== 0) {
+        segs = segs.slice(1);
+        const wildcardName = '*.' + segs.join('.');
+        ips.push(...dnsrecords.filter((v) => v.record === wildcardName));
+      }
       for (const id in ips) {
         if (Object.prototype.hasOwnProperty.call(ips, id)) {
           const rec = ips[id];
@@ -89,6 +96,23 @@ export async function main(): Promise<void> {
     tcp: 5333,
     udp: 5333,
   });
+
+  const stop = () => {
+    console.log();
+    console.log('bye');
+    dnssv.close();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => {
+    stop();
+  }); // CTRL+C
+  process.on('SIGQUIT', () => {
+    stop();
+  }); // Keyboard quit
+  process.on('SIGTERM', () => {
+    stop();
+  }); // `kill` command
 }
 
 main();
