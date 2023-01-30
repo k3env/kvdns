@@ -1,105 +1,79 @@
 import * as express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
-import consul from 'consul';
 import dns2 from 'dns2';
+import { AppConfig } from './types';
+import { ConsulBackend, Backend } from './backend';
 const { Packet } = dns2;
-
-type KV<T> = { [key: string]: T };
-
-type ARecord = {
-  record: string;
-  addr: string;
-  ttl?: number;
-};
-type SRVRecord = {
-  name: string;
-  port: number;
-  ttl?: number;
-};
-type DNSKV = {
-  record: string;
-  value: string[];
-};
 
 dotenv.config();
 
+const appConfig: AppConfig = {
+  HTTP_PORT: Number.parseInt(process.env.HTTP_PORT ?? '3000'), // Default
+  DNS_PORT_TCP: Number.parseInt(process.env.DNS_PORT_TCP ?? '-1'), // Default
+  DNS_PORT_UDP: Number.parseInt(process.env.DNS_PORT_UDP ?? '-1'), // Default
+  CONSUL_KV_ROOT: process.env.CONSUL_KV_ROOT ?? 'app/kvdns',
+  CONSUL_ENDPOINT: process.env.CONSUL_ENDPOINT ?? 'UNSET',
+  DNS_TCP_ENABLED: Number.parseInt(process.env.DNS_PORT_TCP ?? '-1') !== -1,
+  DNS_UDP_ENABLED: Number.parseInt(process.env.DNS_PORT_UDP ?? '-1') !== -1,
+};
+
+function init(): string[] {
+  const errors = [];
+  if (appConfig.CONSUL_ENDPOINT === 'UNSET') {
+    errors.push("CONSUL_ENDPOINT isn't set, exit");
+  }
+  if (!appConfig.DNS_TCP_ENABLED && !appConfig.DNS_UDP_ENABLED) {
+    errors.push('You need specify atleast one of DNS ports, TCP or UDP');
+  }
+  return errors;
+}
+
 export async function main(): Promise<void> {
-  const dnsrecords: ARecord[] = [];
-  const rootKey = 'app/coredns-v2';
-  const cclient = new consul({ host: 'consul.service.consul' });
+  const errs = init();
+  if (errs.length > 0) {
+    errs.forEach((e) => console.error(e));
+    process.exit(-1);
+  }
 
-  const watch = cclient.watch({
-    method: cclient.kv.keys,
-    options: { key: `${rootKey}/records` },
-  });
-
-  watch.on('change', async (data, res) => {
-    // console.log(data, res);
-    const domains = ((await cclient.kv.keys(`${rootKey}/records`)) as string[]).map((v) => v.split('/').slice(-1)[0]);
-    for (const id in domains) {
-      const domain = domains[id];
-      const records = JSON.parse(((await cclient.kv.get(`${rootKey}/records/${domain}`)) as { Value: string }).Value);
-      for (const id in records) {
-        if (Object.prototype.hasOwnProperty.call(records, id)) {
-          const record = records[id] as DNSKV;
-          const arecords = record.value.map((ip) => {
-            const name = record.record === '@' ? domain : `${record.record}.${domain}`;
-            const newA: ARecord = { record: name, addr: ip, ttl: 60 };
-            return newA;
-          });
-
-          dnsrecords.push(...arecords);
-        }
-      }
-    }
-    console.log('key changed');
-  });
+  const backend = new ConsulBackend(appConfig);
 
   const dnssv = dns2.createServer({
-    tcp: true,
-    udp: true,
+    tcp: appConfig.DNS_TCP_ENABLED,
+    udp: appConfig.DNS_UDP_ENABLED,
     handle: (req, send) => {
-      const response = Packet.createResponseFromRequest(req);
-      const [question] = req.questions;
-      const { name } = question;
-      let segs = name.split('.');
-      const ips = dnsrecords.filter((v) => v.record === name);
-      while (ips.length === 0 && segs.length !== 0) {
-        segs = segs.slice(1);
-        const wildcardName = '*.' + segs.join('.');
-        ips.push(...dnsrecords.filter((v) => v.record === wildcardName));
-      }
-      for (const id in ips) {
-        if (Object.prototype.hasOwnProperty.call(ips, id)) {
-          const rec = ips[id];
-          response.answers.push({
-            name,
-            type: Packet.TYPE.A,
-            class: Packet.CLASS.IN,
-            ttl: rec.ttl ?? 600,
-            address: rec.addr,
-          });
-        }
-      }
-      send(response);
+      send(handleDnsRequest(req, backend));
     },
   });
 
   const app = express.default();
   app.use(express.json());
   app.use(cors({ origin: '*' }));
-  app.listen(3000, () => {
-    console.log('it works (v0.3) on 0.0.0.0:3000');
+  app.get('/db', (req, res) => {
+    res.send(backend.Db);
   });
-  dnssv.listen({
-    tcp: 5333,
-    udp: 5333,
+  app.listen(appConfig.HTTP_PORT, () => {
+    console.log(`HTTP server started on port ${appConfig.HTTP_PORT}`);
   });
+  dnssv
+    .listen({
+      tcp: appConfig.DNS_TCP_ENABLED ? appConfig.DNS_PORT_TCP : undefined,
+      udp: appConfig.DNS_UDP_ENABLED ? appConfig.DNS_PORT_UDP : undefined,
+    })
+    .then(() => {
+      console.log(`DNS server started on:`);
+      if (appConfig.DNS_PORT_TCP !== -1) {
+        console.log(`-- TCP: ${appConfig.DNS_PORT_TCP}`);
+      }
+      if (appConfig.DNS_PORT_UDP !== -1) {
+        console.log(`-- UDP: ${appConfig.DNS_PORT_UDP}`);
+      }
+    });
 
-  const stop = () => {
+  const stop = (): void => {
     console.log();
     console.log('bye');
+    backend.destroy();
     dnssv.close();
     process.exit(0);
   };
@@ -113,6 +87,28 @@ export async function main(): Promise<void> {
   process.on('SIGTERM', () => {
     stop();
   }); // `kill` command
+}
+
+function handleDnsRequest(req: dns2.DnsRequest, backend: Backend): dns2.DnsResponse {
+  const response = Packet.createResponseFromRequest(req);
+  const [question] = req.questions;
+  const { name } = question;
+  const q: { type: number; class: number; name: string } = JSON.parse(JSON.stringify(question));
+  console.log(q.class, q.type, q.name);
+
+  const ips = backend.resolve(name);
+  const res = ips.map((rec) => {
+    console.log(rec.source, rec.record, rec.addr);
+    return {
+      name,
+      type: Packet.TYPE.A,
+      class: Packet.CLASS.IN,
+      ttl: rec.ttl ?? 600,
+      address: rec.addr,
+    };
+  });
+  response.answers.push(...res);
+  return response;
 }
 
 main();
