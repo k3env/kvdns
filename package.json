@@ -7,7 +7,8 @@
     "debug": "npx nodemon -e ts",
     "start": "node --loader ts-node/esm --inspect --experimental-specifier-resolution=node src/main.ts serve",
     "build": "npx tsc",
-    "bundle": "npx rollup dist/main.js --file app/app.js --format cjs"
+    "bundle": "npx rollup -c",
+    "cleanup": "npx rimraf dist/"
   },
   "author": "",
   "license": "ISC",
@@ -21,6 +22,11 @@
     "lowdb": "^4.0.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.20.12",
+    "@babel/node": "^7.20.7",
+    "@babel/preset-env": "^7.20.2",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-commonjs": "^24.0.1",
     "@types/cors": "^2.8.13",
     "@types/dns2": "^2.0.1",
     "@types/express": "^4.17.14",

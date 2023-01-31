@@ -1,10 +1,10 @@
-waypoint.hcl
-.waypoint
 node_modules
+.env
+dist
 .editorconfig
 .eslint*
 .git
 .gitignore
-.env
-deploy
-dist
+.drone.yml
+.prettierrc
+README.md
