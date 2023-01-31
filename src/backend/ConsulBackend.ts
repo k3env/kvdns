@@ -1,61 +1,76 @@
 import { AppConfig } from './../types/AppConfig';
 import ConsulStatic, { Consul, Watch } from 'consul';
-import { ARecord, DNSKV } from '../types';
 import { Backend } from './BackendGeneric';
+import { NSRecordPayload, Schema } from '../types/Schema';
+import { ConsulKV } from '../types/ConsulKV';
 
-export class ConsulBackend implements Backend {
-  private db: ARecord[];
+export class ConsulBackend extends Backend implements Backend {
+  protected db: Schema;
   private client: Consul;
   private watcher: Watch;
 
+  private _config: AppConfig;
+
   constructor(config: AppConfig) {
+    super();
+    this._config = config;
     this.client = new ConsulStatic({
       host: config.CONSUL_ENDPOINT,
     });
-    this.db = [];
-    this.watcher = this.client.watch({
-      method: this.client.kv.keys,
-      options: { key: `${config.CONSUL_KV_ROOT}/records` },
-    });
-    this.watcher.on('change', (data) => this._update(data));
+    this.db = {};
+    try {
+      this.client.kv.keys(`${config.CONSUL_KV_ROOT}/zones`);
+    } catch (error) {
+      this.client.kv.set(`${config.CONSUL_KV_ROOT}/zones/`, '');
+    } finally {
+      this.watcher = this.client.watch({
+        method: this.client.kv.keys,
+        options: { key: `${config.CONSUL_KV_ROOT}/zones` },
+      });
+      this.watcher.on('change', (data) => this._update(data));
+    }
   }
 
-  public update(): void {
+  public addZone(zone: string): boolean {
+    throw new Error(`Zone and record management available only from Consul`);
+  }
+  public deleteZone(zone: string): boolean {
+    throw new Error(`Zone and record management available only from Consul`);
+  }
+  public updateZone(oldzone: string, newzone: string): boolean {
+    throw new Error(`Zone and record management available only from Consul`);
+  }
+
+  public addRecord(zone: string, record: NSRecordPayload): boolean {
+    throw new Error(`Zone and record management available only from Consul`);
+  }
+  public deleteRecord(zone: string, id: string): boolean {
+    throw new Error(`Zone and record management available only from Consul`);
+  }
+  public updateRecord(zone: string, id: string, payload: NSRecordPayload): boolean {
+    throw new Error(`Zone and record management available only from Consul`);
+  }
+
+  public updateDb(): void {
     throw new Error('Direct update call not allowed');
   }
 
   private async _update(data: string[]): Promise<void> {
     data.forEach(async (d) => {
       const [domain] = d.split('/').slice(-1);
-      this.db = this.db.filter((v) => v.source !== `consul/${domain}`);
-      const records: DNSKV[] = JSON.parse(((await this.client.kv.get(d)) as { Value: string }).Value);
-      records.forEach((r) => {
-        const arecords = r.value.map((ip) => {
-          const name = r.record === '@' ? domain : `${r.record}.${domain}`;
-          const newA: ARecord = { source: `consul/${domain}`, record: name, addr: ip, ttl: 60 };
-          return newA;
-        });
-        this.db.push(...arecords);
-      });
+      try {
+        this.db[domain] = JSON.parse(((await this.client.kv.get(d)) as { Value: string }).Value);
+      } catch {
+        console.log('key not found');
+      }
     });
   }
 
-  public destroy(): void {
+  public stop(): void {
     this.watcher.end();
   }
 
-  public resolve(lookup: string): ARecord[] {
-    let segs = lookup.split('.');
-    const ips = this.db.filter((v) => v.record === lookup);
-    while (ips.length === 0 && segs.length !== 0) {
-      segs = segs.slice(1);
-      const wildcardName = '*.' + segs.join('.');
-      ips.push(...this.db.filter((v) => v.record === wildcardName));
-    }
-    return ips;
-  }
-
-  public get Db(): ARecord[] {
+  public get Db(): Schema {
     return this.db;
   }
 }

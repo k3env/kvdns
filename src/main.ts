@@ -2,8 +2,9 @@ import * as express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import dns2 from 'dns2';
-import { AppConfig } from './types';
-import { ConsulBackend, Backend } from './backend';
+import { AppConfig, BackendDriver } from './types';
+import { ConsulBackend, LocalBackend, Backend } from './backend';
+import { NSRecordDataA } from './types/Schema';
 const { Packet } = dns2;
 
 dotenv.config();
@@ -16,11 +17,13 @@ const appConfig: AppConfig = {
   CONSUL_ENDPOINT: process.env.CONSUL_ENDPOINT ?? 'UNSET',
   DNS_TCP_ENABLED: Number.parseInt(process.env.DNS_PORT_TCP ?? '-1') !== -1,
   DNS_UDP_ENABLED: Number.parseInt(process.env.DNS_PORT_UDP ?? '-1') !== -1,
+  BACKEND: (process.env.BACKEND as BackendDriver | undefined) ?? 'local',
+  LOCAL_DB_LOCATION: process.env.LOCAL_DB_LOCATION ?? 'db.json',
 };
 
 function init(): string[] {
   const errors = [];
-  if (appConfig.CONSUL_ENDPOINT === 'UNSET') {
+  if (appConfig.CONSUL_ENDPOINT === 'UNSET' && appConfig.BACKEND === 'consul') {
     errors.push("CONSUL_ENDPOINT isn't set, exit");
   }
   if (!appConfig.DNS_TCP_ENABLED && !appConfig.DNS_UDP_ENABLED) {
@@ -36,7 +39,16 @@ export async function main(): Promise<void> {
     process.exit(-1);
   }
 
-  const backend = new ConsulBackend(appConfig);
+  console.log(`Loading backend: ${appConfig.BACKEND}`);
+  let backend: Backend;
+  switch (appConfig.BACKEND) {
+    case 'local':
+      backend = new LocalBackend(appConfig);
+      break;
+    case 'consul':
+      backend = new ConsulBackend(appConfig);
+      break;
+  }
 
   const dnssv = dns2.createServer({
     tcp: appConfig.DNS_TCP_ENABLED,
@@ -52,6 +64,71 @@ export async function main(): Promise<void> {
   app.get('/db', (req, res) => {
     res.send(backend.Db);
   });
+  app.get('/table', (req, res) => {
+    if (req.query['id']) {
+      res.send(backend.Table.filter((v) => v.id === req.query['id']));
+    } else {
+      res.send(backend.Table);
+    }
+  });
+  app.get('/zones', (req, res) => {
+    const k = [];
+    for (const key in backend.Db) {
+      k.push(key);
+    }
+    res.send(k);
+  });
+
+  app.post('/api/zone', (req, res) => {
+    try {
+      const rd = backend.addZone(req.body.zone);
+      res.send(rd);
+    } catch (error) {
+      res.status(500).send((error as Error).message);
+    }
+  });
+  app.delete('/api/zone', (req, res) => {
+    try {
+      backend.deleteZone(req.body.zone);
+      res.send(true);
+    } catch (error) {
+      res.status(500).send((error as Error).message);
+    }
+  });
+  app.patch('/api/zone', (req, res) => {
+    try {
+      backend.updateZone(req.body.oldzone, req.body.newzone);
+      res.send(true);
+    } catch (error) {
+      res.status(500).send((error as Error).message);
+    }
+  });
+
+  app.post('/api/record', (req, res) => {
+    try {
+      const rd = backend.addRecord(req.body.zone, req.body.payload);
+      res.send(rd);
+    } catch (error) {
+      res.status(500).send((error as Error).message);
+    }
+  });
+  app.patch('/api/record', (req, res) => {
+    try {
+      const rd = backend.updateRecord(req.body.zone, req.body.id, req.body.payload);
+      res.send(rd);
+    } catch (error) {
+      res.status(500).send((error as Error).message);
+    }
+  });
+  app.delete('/api/record', (req, res) => {
+    try {
+      const rd = backend.deleteRecord(req.body.zone, req.body.id);
+      res.send(rd);
+    } catch (error) {
+      res.status(500).send((error as Error).message);
+    }
+  });
+
   app.listen(appConfig.HTTP_PORT, () => {
     console.log(`HTTP server started on port ${appConfig.HTTP_PORT}`);
   });
@@ -73,7 +150,7 @@ export async function main(): Promise<void> {
   const stop = (): void => {
     console.log();
     console.log('bye');
-    backend.destroy();
+    backend.stop();
     dnssv.close();
     process.exit(0);
   };
@@ -98,13 +175,12 @@ function handleDnsRequest(req: dns2.DnsRequest, backend: Backend): dns2.DnsRespo
 
   const ips = backend.resolve(name);
   const res = ips.map((rec) => {
-    console.log(rec.source, rec.record, rec.addr);
     return {
       name,
       type: Packet.TYPE.A,
       class: Packet.CLASS.IN,
       ttl: rec.ttl ?? 600,
-      address: rec.addr,
+      address: (rec.data as NSRecordDataA).address,
     };
   });
   response.answers.push(...res);
