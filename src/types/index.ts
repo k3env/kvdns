@@ -1,2 +1,2 @@
-import { AppConfig, BackendDriver } from './AppConfig';
-export { AppConfig, BackendDriver };
+import { Config, BackendDriver } from './AppConfig';
+export { Config, BackendDriver };

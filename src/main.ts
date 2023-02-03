@@ -5,9 +5,10 @@ import dns2 from 'dns2';
 import * as fs from 'fs';
 import { LocalBackend, Backend } from './backend';
 import { NSRecordDataA } from './types/Schema';
-import { Config } from './types/AppConfig';
+import { Config } from './types';
 import { RecordsApi } from './api/record';
 import { ZoneApi } from './api/zone';
+import { MemoryBackend } from './backend/MemoryBackend';
 const { Packet } = dns2;
 
 dotenv.config();
@@ -42,6 +43,9 @@ export async function main(): Promise<void> {
   switch (cfg.backend.driver) {
     case 'local':
       backend = new LocalBackend(cfg);
+      break;
+    case 'memory':
+      backend = new MemoryBackend(cfg);
       break;
     default:
       throw new Error(`Backend ${cfg.backend.driver} not yet implemented`);
