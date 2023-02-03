@@ -38,5 +38,5 @@ export interface NSRecordDataSRV extends NSRecordData {
   priority: number;
   weight: number;
   port: number;
-  target: number;
+  target: string;
 }
