@@ -2,57 +2,54 @@ import * as express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import dns2 from 'dns2';
-import { AppConfig, BackendDriver } from './types';
-import { ConsulBackend, LocalBackend, Backend } from './backend';
+import * as fs from 'fs';
+import { LocalBackend, Backend } from './backend';
 import { NSRecordDataA } from './types/Schema';
+import { Config } from './types/AppConfig';
+import { RecordsApi } from './api/record';
+import { ZoneApi } from './api/zone';
 const { Packet } = dns2;
 
 dotenv.config();
 
-const appConfig: AppConfig = {
-  HTTP_PORT: Number.parseInt(process.env.HTTP_PORT ?? '3000'), // Default
-  DNS_PORT_TCP: Number.parseInt(process.env.DNS_PORT_TCP ?? '-1'), // Default
-  DNS_PORT_UDP: Number.parseInt(process.env.DNS_PORT_UDP ?? '-1'), // Default
-  CONSUL_KV_ROOT: process.env.CONSUL_KV_ROOT ?? 'app/kvdns',
-  CONSUL_ENDPOINT: process.env.CONSUL_ENDPOINT ?? 'UNSET',
-  DNS_TCP_ENABLED: Number.parseInt(process.env.DNS_PORT_TCP ?? '-1') !== -1,
-  DNS_UDP_ENABLED: Number.parseInt(process.env.DNS_PORT_UDP ?? '-1') !== -1,
-  BACKEND: (process.env.BACKEND as BackendDriver | undefined) ?? 'local',
-  LOCAL_DB_LOCATION: process.env.LOCAL_DB_LOCATION ?? 'db.json',
-};
-
-function init(): string[] {
+function init(config: Config): string[] {
   const errors = [];
-  if (appConfig.CONSUL_ENDPOINT === 'UNSET' && appConfig.BACKEND === 'consul') {
-    errors.push("CONSUL_ENDPOINT isn't set, exit");
+  if (config.backend.driver === 'consul') {
+    if (config.backend.consul === undefined) {
+      errors.push("Consul config section isn't set");
+    }
   }
-  if (!appConfig.DNS_TCP_ENABLED && !appConfig.DNS_UDP_ENABLED) {
+  if (!config.dns.ports.tcp && !config.dns.ports.udp) {
     errors.push('You need specify atleast one of DNS ports, TCP or UDP');
   }
   return errors;
 }
 
+function loadConfig(file = 'config.json'): Config {
+  return JSON.parse(fs.readFileSync(file).toString('utf8'));
+}
+
 export async function main(): Promise<void> {
-  const errs = init();
+  const cfg = loadConfig();
+  const errs = init(cfg);
   if (errs.length > 0) {
     errs.forEach((e) => console.error(e));
     process.exit(-1);
   }
 
-  console.log(`Loading backend: ${appConfig.BACKEND}`);
+  console.log(`Loading backend: ${cfg.backend.driver}`);
   let backend: Backend;
-  switch (appConfig.BACKEND) {
+  switch (cfg.backend.driver) {
     case 'local':
-      backend = new LocalBackend(appConfig);
+      backend = new LocalBackend(cfg);
       break;
-    case 'consul':
-      backend = new ConsulBackend(appConfig);
-      break;
+    default:
+      throw new Error(`Backend ${cfg.backend.driver} not yet implemented`);
   }
 
   const dnssv = dns2.createServer({
-    tcp: appConfig.DNS_TCP_ENABLED,
-    udp: appConfig.DNS_UDP_ENABLED,
+    tcp: cfg.dns.ports.tcp !== undefined,
+    udp: cfg.dns.ports.udp !== undefined,
     handle: (req, send) => {
       send(handleDnsRequest(req, backend));
     },
@@ -64,13 +61,6 @@ export async function main(): Promise<void> {
   app.get('/db', (req, res) => {
     res.send(backend.Db);
   });
-  app.get('/table', (req, res) => {
-    if (req.query['id']) {
-      res.send(backend.Table.filter((v) => v.id === req.query['id']));
-    } else {
-      res.send(backend.Table);
-    }
-  });
   app.get('/zones', (req, res) => {
     const k = [];
     for (const key in backend.Db) {
@@ -79,71 +69,24 @@ export async function main(): Promise<void> {
     res.send(k);
   });
 
-  app.post('/api/zone', (req, res) => {
-    try {
-      const rd = backend.addZone(req.body.zone);
-      res.send(rd);
-    } catch (error) {
-      res.status(500).send((error as Error).message);
-    }
-  });
-  app.delete('/api/zone', (req, res) => {
-    try {
-      backend.deleteZone(req.body.zone);
-      res.send(true);
-    } catch (error) {
-      res.status(500).send((error as Error).message);
-    }
-  });
-  app.patch('/api/zone', (req, res) => {
-    try {
-      backend.updateZone(req.body.oldzone, req.body.newzone);
-      res.send(true);
-    } catch (error) {
-      res.status(500).send((error as Error).message);
-    }
-  });
+  app.use('/api/zone', new ZoneApi(backend).Router);
+  app.use('/api/record', new RecordsApi(backend).Router);
 
-  app.post('/api/record', (req, res) => {
-    try {
-      const rd = backend.addRecord(req.body.zone, req.body.payload);
-      res.send(rd);
-    } catch (error) {
-      res.status(500).send((error as Error).message);
-    }
-  });
-  app.patch('/api/record', (req, res) => {
-    try {
-      const rd = backend.updateRecord(req.body.zone, req.body.id, req.body.payload);
-      res.send(rd);
-    } catch (error) {
-      res.status(500).send((error as Error).message);
-    }
-  });
-  app.delete('/api/record', (req, res) => {
-    try {
-      const rd = backend.deleteRecord(req.body.zone, req.body.id);
-      res.send(rd);
-    } catch (error) {
-      res.status(500).send((error as Error).message);
-    }
-  });
-
-  app.listen(appConfig.HTTP_PORT, () => {
-    console.log(`HTTP server started on port ${appConfig.HTTP_PORT}`);
+  app.listen(cfg.http.port, () => {
+    console.log(`HTTP server started on port ${cfg.http.port}`);
   });
   dnssv
     .listen({
-      tcp: appConfig.DNS_TCP_ENABLED ? appConfig.DNS_PORT_TCP : undefined,
-      udp: appConfig.DNS_UDP_ENABLED ? appConfig.DNS_PORT_UDP : undefined,
+      tcp: cfg.dns.ports.tcp,
+      udp: cfg.dns.ports.udp,
     })
     .then(() => {
       console.log(`DNS server started on:`);
-      if (appConfig.DNS_PORT_TCP !== -1) {
-        console.log(`-- TCP: ${appConfig.DNS_PORT_TCP}`);
+      if (cfg.dns.ports.tcp) {
+        console.log(`-- TCP: ${cfg.dns.ports.tcp}`);
       }
-      if (appConfig.DNS_PORT_UDP !== -1) {
-        console.log(`-- UDP: ${appConfig.DNS_PORT_UDP}`);
+      if (cfg.dns.ports.udp) {
+        console.log(`-- UDP: ${cfg.dns.ports.udp}`);
       }
     });
 
