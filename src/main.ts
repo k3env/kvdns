@@ -4,12 +4,12 @@ import * as dotenv from 'dotenv';
 import dns2 from 'dns2';
 import * as fs from 'fs';
 import { LocalBackend, Backend } from './backend';
-import { NSRecordDataA } from './types/Schema';
 import { Config } from './types';
 import { RecordsApi } from './api/record';
 import { ZoneApi } from './api/zone';
 import { MemoryBackend } from './backend/MemoryBackend';
-const { Packet } = dns2;
+import { handleDnsRequest } from './dns';
+import { InfoApi } from './api/info';
 
 dotenv.config();
 
@@ -55,24 +55,17 @@ export async function main(): Promise<void> {
     tcp: cfg.dns.ports.tcp !== undefined,
     udp: cfg.dns.ports.udp !== undefined,
     handle: (req, send) => {
-      send(handleDnsRequest(req, backend));
+      handleDnsRequest(req, backend, cfg).then((v) => {
+        send(v);
+      });
     },
   });
 
   const app = express.default();
   app.use(express.json());
   app.use(cors({ origin: '*' }));
-  app.get('/db', (req, res) => {
-    res.send(backend.Db);
-  });
-  app.get('/zones', (req, res) => {
-    const k = [];
-    for (const key in backend.Db) {
-      k.push(key);
-    }
-    res.send(k);
-  });
 
+  app.use('/', new InfoApi(backend).Router);
   app.use('/api/zone', new ZoneApi(backend).Router);
   app.use('/api/record', new RecordsApi(backend).Router);
 
@@ -111,27 +104,6 @@ export async function main(): Promise<void> {
   process.on('SIGTERM', () => {
     stop();
   }); // `kill` command
-}
-
-function handleDnsRequest(req: dns2.DnsRequest, backend: Backend): dns2.DnsResponse {
-  const response = Packet.createResponseFromRequest(req);
-  const [question] = req.questions;
-  const { name } = question;
-  const q: { type: number; class: number; name: string } = JSON.parse(JSON.stringify(question));
-  console.log(q.class, q.type, q.name);
-
-  const ips = backend.resolve(name);
-  const res = ips.map((rec) => {
-    return {
-      name,
-      type: Packet.TYPE.A,
-      class: Packet.CLASS.IN,
-      ttl: rec.ttl ?? 600,
-      address: (rec.data as NSRecordDataA).address,
-    };
-  });
-  response.answers.push(...res);
-  return response;
 }
 
 main();

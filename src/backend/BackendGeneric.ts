@@ -6,7 +6,6 @@ export abstract class Backend {
   protected schemaToTable(): NSRecord[] {
     const v = [];
     for (const zone in this.db) {
-      // const name = zone;
       const records = this.db[zone];
       v.push(
         ...records.map((ns) => {

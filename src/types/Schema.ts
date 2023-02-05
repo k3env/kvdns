@@ -15,28 +15,31 @@ export interface NSRecordPayload {
   data: NSRecordData;
 }
 
-export type NSRecordType = 'A' | 'NS' | 'MX' | 'SRV' | 'TXT';
+export type NSRecordType = 'A' | 'NS' | 'MX' | 'SRV' | 'TXT' | 'CNAME';
 
 export interface NSRecordData {
-  class: 'IN';
+  class: 1;
 }
 
 export interface NSRecordDataA extends NSRecordData {
   address: string;
 }
 export interface NSRecordDataNS extends NSRecordData {
-  cname: string;
+  ns: string;
 }
 export interface NSRecordDataMX extends NSRecordData {
   priority: number;
-  cname: string;
+  exchange: string;
 }
 export interface NSRecordDataTXT extends NSRecordData {
-  value: string;
+  data: string;
 }
 export interface NSRecordDataSRV extends NSRecordData {
   priority: number;
   weight: number;
   port: number;
   target: string;
+}
+export interface NSRecordDataCNAME extends NSRecordData {
+  domain: string;
 }

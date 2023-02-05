@@ -1,4 +1,4 @@
-import { AppConfig } from './../types/AppConfig';
+import { Config } from './../types/AppConfig';
 import ConsulStatic, { Consul, Watch } from 'consul';
 import { Backend } from './BackendGeneric';
 import { NSRecordPayload, Schema } from '../types/Schema';
@@ -9,23 +9,24 @@ export class ConsulBackend extends Backend implements Backend {
   private client: Consul;
   private watcher: Watch;
 
-  private _config: AppConfig;
+  private _config: Config;
 
-  constructor(config: AppConfig) {
+  constructor(config: Config) {
     super();
     this._config = config;
     this.client = new ConsulStatic({
-      host: config.CONSUL_ENDPOINT,
+      host: config.backend.consul?.endpoint,
+      port: config.backend.consul?.port?.toString() ?? '8500',
     });
     this.db = {};
     try {
-      this.client.kv.keys(`${config.CONSUL_KV_ROOT}/zones`);
+      this.client.kv.keys(`${config.backend.consul?.kvRoot}/zones`);
     } catch (error) {
-      this.client.kv.set(`${config.CONSUL_KV_ROOT}/zones/`, '');
+      this.client.kv.set(`${config.backend.consul?.kvRoot}/zones/`, '');
     } finally {
       this.watcher = this.client.watch({
         method: this.client.kv.keys,
-        options: { key: `${config.CONSUL_KV_ROOT}/zones` },
+        options: { key: `${config.backend.consul?.kvRoot}/zones` },
       });
       this.watcher.on('change', (data) => this._update(data));
     }

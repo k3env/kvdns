@@ -13,18 +13,14 @@ export class MemoryBackend extends Backend implements Backend {
   constructor(config: Config) {
     super();
     this.db = {};
-    if (config.backend.local) {
-      this.client = new LowSync(new MemorySync<Schema>());
+    this.client = new LowSync(new MemorySync<Schema>());
+    this.updateDb();
+    this.timer = setInterval(() => {
       this.updateDb();
-      this.timer = setInterval(() => {
-        this.updateDb();
-      }, 500);
+    }, 500);
 
-      console.log('WARNING: USE THIS BACKEND ONLY FOR TEST PURPOSES');
-      console.log('Backend initialized with config:', config);
-    } else {
-      throw new Error("Config doesn't constains any info about current backend");
-    }
+    console.log('WARNING: USE THIS BACKEND ONLY FOR TEST PURPOSES');
+    console.log('Backend initialized with config:', config);
   }
   public updateDb(): void {
     this.client.read();
