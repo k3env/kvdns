@@ -52,8 +52,8 @@ export async function main(): Promise<void> {
   const dnssv = dns2.createServer({
     tcp: cfg.dns.ports.tcp !== undefined,
     udp: cfg.dns.ports.udp !== undefined,
-    handle: (req, send) => {
-      handleDnsRequest(req, backend, cfg).then((v) => {
+    handle: (req, send, info) => {
+      handleDnsRequest(req, backend, cfg, info).then((v) => {
         send(v);
       });
     },

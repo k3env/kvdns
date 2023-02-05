@@ -16,6 +16,9 @@ export interface DnsConfig {
     tcp?: number;
     udp?: number;
   };
+  requestLog: boolean;
+  recursion: RecursionConfig;
+  local: LocalConfig;
 }
 export interface BackendConfig {
   driver: BackendDriver;
@@ -24,8 +27,6 @@ export interface BackendConfig {
 }
 export interface ExperimantalConfig {
   ui: boolean;
-  recursion: RecursionConfig;
-  local: LocalConfig;
 }
 export interface ConsulBackendConfig {
   endpoint: string;
@@ -38,6 +39,7 @@ export interface LocalBackendConfig {
 export interface RecursionConfig {
   enabled: boolean;
   upstreams: string[];
+  denyRecursion: string[];
 }
 export interface LocalConfig {
   enabled: boolean;

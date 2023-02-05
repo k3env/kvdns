@@ -1,3 +1,4 @@
+import { RemoteInfo } from 'dgram';
 import { MxRecord, SrvRecord } from 'dns';
 import { lookup, Resolver } from 'dns/promises';
 import dns2, { DnsAnswer } from 'dns2';
@@ -28,6 +29,7 @@ export async function handleDnsRequest(
   req: dns2.DnsRequest,
   backend: Backend,
   config: Config,
+  info: RemoteInfo,
 ): Promise<dns2.DnsResponse> {
   const response = Packet.createResponseFromRequest(req);
   const [question] = req.questions;
@@ -39,16 +41,17 @@ export async function handleDnsRequest(
 
   const qtype = rrtype.find((r) => r.value === q.type) ?? { key: 'A', value: 1 };
 
-  let reqLog = `${rrclass.find((r) => r.value === q.class)?.key ?? 'IN'} ${qtype.key} ${q.name}`;
+  const clientInfo = `${info.address} ${rrclass.find((r) => r.value === q.class)?.key ?? 'IN'} ${qtype.key} ${q.name}`;
+  let answerInfo = '';
 
   const ips: NSRecord[] = [];
 
-  const noRecursionZones = ['local', 'tld'];
+  const noRecursionZones = config.dns.recursion.denyRecursion;
 
   if (
     qtype.key === 'A' &&
-    config.experimental?.local.enabled &&
-    config.experimental.local.domains.findIndex((v) => name.endsWith(v)) !== -1
+    config.dns.local.enabled &&
+    config.dns.local.domains.findIndex((v) => name.endsWith(v)) !== -1
   ) {
     try {
       const addrs = (await lookup(name, { all: true, family: 4 })).map((l) => {
@@ -62,16 +65,18 @@ export async function handleDnsRequest(
         return a;
       });
       response.answers.push(...addrs);
-      reqLog = `${reqLog} => LOCAL ANSWERS: ${addrs.length}`;
+      answerInfo = `LOCAL ANSWERS: ${addrs.length}`;
     } catch (e) {
-      reqLog = `${reqLog} => NO DATA`;
+      answerInfo = `NO DATA`;
     }
   } else {
     ips.push(...backend.resolve(name));
+    answerInfo = `AUTH ANSWERS: ${ips.length}`;
     const disallowRecursion = noRecursionZones.findIndex((v) => v === q.name.split('.').slice(-1)[0]) !== -1;
-    if (config.experimental?.recursion.enabled && !disallowRecursion) {
+    if (config.dns.recursion.enabled && !disallowRecursion) {
       if (ips.length === 0) {
-        ips.push(...(await makeRecursionRequest(q, config.experimental.recursion)));
+        ips.push(...(await makeRecursionRequest(q, config.dns.recursion)));
+        answerInfo = `RECURSION ANSWERS: ${ips.length}`;
       }
     }
     const res: DnsAnswer[] = ips.map((rec) => {
@@ -83,9 +88,10 @@ export async function handleDnsRequest(
       };
     });
     response.answers.push(...res);
-    reqLog = `${reqLog} => REMOTE ANSWERS: ${ips.length}`;
   }
-  console.log(reqLog);
+  if (config.dns.requestLog) {
+    console.log(`${clientInfo} => ${answerInfo}`);
+  }
   return response;
 }
 
@@ -174,7 +180,7 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: RecursionCo
         break;
     }
   } catch (e) {
-    console.log();
+    return [];
   }
   return recs;
 }
