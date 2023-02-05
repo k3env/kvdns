@@ -38,7 +38,8 @@ export async function handleDnsRequest(
 
   const qtype = rrtype.find((r) => r.value === q.type) ?? { key: 'A', value: 1 };
 
-  console.log(rrclass.find((r) => r.value === q.class)?.key ?? 'IN', qtype.key, q.name);
+  let reqLog = `${rrclass.find((r) => r.value === q.class)?.key ?? 'IN'} ${qtype.key} ${q.name}`;
+
   const ips: NSRecord[] = [];
 
   if (
@@ -57,7 +58,7 @@ export async function handleDnsRequest(
       return a;
     });
     response.answers.push(...addrs);
-    return response;
+    reqLog = `${reqLog} => LOCAL ANSWERS: ${addrs.length}`;
   } else {
     ips.push(...backend.resolve(name));
     if (config.experimental?.recursion.enabled) {
@@ -74,8 +75,10 @@ export async function handleDnsRequest(
       };
     });
     response.answers.push(...res);
-    return response;
+    reqLog = `${reqLog} => REMOTE ANSWERS: ${ips.length}`;
   }
+  console.log(reqLog);
+  return response;
 }
 
 async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Promise<NSRecord[]> {
