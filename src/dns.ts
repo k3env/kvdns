@@ -70,10 +70,10 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Pr
   switch (qtype as NSRecordType) {
     case 'A':
       recs.push(
-        ...(addr as string[]).map((ip) => {
+        ...(addr as string[]).map((address) => {
           const data: NSRecordDataA = {
             class: 1,
-            address: ip,
+            address,
           };
           const _rr: NSRecord = { id: 'external', name: req.name, type: 'A', ttl: 60, data: data };
           return _rr;
@@ -82,10 +82,10 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Pr
       break;
     case 'CNAME':
       recs.push(
-        ...(addr as string[]).map((ip) => {
+        ...(addr as string[]).map((domain) => {
           const data: NSRecordDataCNAME = {
             class: 1,
-            domain: ip,
+            domain,
           };
           const _rr: NSRecord = { id: 'external', name: req.name, type: 'A', ttl: 60, data: data };
           return _rr;
@@ -97,8 +97,7 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Pr
         ...(addr as MxRecord[]).map((r) => {
           const data: NSRecordDataMX = {
             class: 1,
-            priority: r.priority,
-            exchange: r.exchange,
+            ...r,
           };
           const _rr: NSRecord = { id: 'external', name: req.name, type: 'MX', ttl: 60, data: data };
           return _rr;
@@ -107,10 +106,10 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Pr
       break;
     case 'NS':
       recs.push(
-        ...(addr as string[]).map((r) => {
+        ...(addr as string[]).map((ns) => {
           const data: NSRecordDataNS = {
             class: 1,
-            ns: r,
+            ns,
           };
           const _rr: NSRecord = { id: 'external', name: req.name, type: 'NS', ttl: 60, data: data };
           return _rr;
@@ -122,9 +121,7 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Pr
         ...(addr as SrvRecord[]).map((r) => {
           const data: NSRecordDataSRV = {
             class: 1,
-            port: r.port,
-            priority: r.priority,
-            weight: r.weight,
+            ...r,
             target: r.name,
           };
           const _rr: NSRecord = { id: 'external', name: req.name, type: 'SRV', ttl: 60, data: data };
@@ -134,12 +131,12 @@ async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Pr
       break;
     case 'TXT':
       recs.push(
-        ...(addr as string[][]).flat(1).map((r) => {
-          const data: NSRecordDataTXT = {
+        ...(addr as string[][]).flat(1).map((data) => {
+          const rdata: NSRecordDataTXT = {
             class: 1,
-            data: r,
+            data,
           };
-          const _rr: NSRecord = { id: 'external', name: req.name, type: 'TXT', ttl: 60, data: data };
+          const _rr: NSRecord = { id: 'external', name: req.name, type: 'TXT', ttl: 60, data: rdata };
           return _rr;
         }),
       );
