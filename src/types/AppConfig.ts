@@ -25,6 +25,7 @@ interface BackendConfig {
 interface ExperimantalConfig {
   ui: boolean;
   recursion: RecursionConfig;
+  local: LocalConfig;
 }
 interface ConsulBackendConfig {
   endpoint: string;
@@ -37,4 +38,8 @@ interface LocalBackendConfig {
 interface RecursionConfig {
   enabled: boolean;
   upstreams: string[];
+}
+interface LocalConfig {
+  enabled: boolean;
+  domains: string[];
 }

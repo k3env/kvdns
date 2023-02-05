@@ -1,5 +1,5 @@
 import { MxRecord, SrvRecord } from 'dns';
-import { Resolver } from 'dns/promises';
+import { lookup, Resolver } from 'dns/promises';
 import dns2, { DnsAnswer } from 'dns2';
 import { Backend } from './backend';
 import { RecordToArray } from './helpers/RecordToArray';
@@ -39,24 +39,43 @@ export async function handleDnsRequest(
   const qtype = rrtype.find((r) => r.value === q.type) ?? { key: 'A', value: 1 };
 
   console.log(rrclass.find((r) => r.value === q.class)?.key ?? 'IN', qtype.key, q.name);
+  const ips: NSRecord[] = [];
 
-  const ips = backend.resolve(name);
-
-  if (config.experimental?.recursion.enabled) {
-    if (ips.length === 0) {
-      ips.push(...(await makeRecursionRequest(q, config)));
+  if (
+    qtype.key === 'A' &&
+    config.experimental?.local.enabled &&
+    config.experimental.local.domains.findIndex((v) => name.endsWith(v)) !== -1
+  ) {
+    const addrs = (await lookup(name, { all: true, family: 4 })).map((l) => {
+      const a: DnsAnswer = {
+        class: Packet.CLASS.IN,
+        name,
+        ttl: 600,
+        type: Packet.TYPE.A,
+        address: l.address,
+      };
+      return a;
+    });
+    response.answers.push(...addrs);
+    return response;
+  } else {
+    ips.push(...backend.resolve(name));
+    if (config.experimental?.recursion.enabled) {
+      if (ips.length === 0) {
+        ips.push(...(await makeRecursionRequest(q, config)));
+      }
     }
+    const res: DnsAnswer[] = ips.map((rec) => {
+      return {
+        name,
+        type: qtype.value,
+        ttl: rec.ttl,
+        ...rec.data,
+      };
+    });
+    response.answers.push(...res);
+    return response;
   }
-  const res: DnsAnswer[] = ips.map((rec) => {
-    return {
-      name,
-      type: qtype.value,
-      ttl: rec.ttl,
-      ...rec.data,
-    };
-  });
-  response.answers.push(...res);
-  return response;
 }
 
 async function makeRecursionRequest(req: DnsRequestExtended, config: Config): Promise<NSRecord[]> {
