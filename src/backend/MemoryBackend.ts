@@ -1,4 +1,4 @@
-import { Config } from '../types/AppConfig';
+import { BackendConfig } from '../types/AppConfig';
 import { LowSync, MemorySync } from 'lowdb';
 
 import { Backend } from './BackendGeneric';
@@ -10,7 +10,7 @@ export class MemoryBackend extends Backend implements Backend {
   private client: LowSync<Schema>;
   private timer: NodeJS.Timeout;
 
-  constructor(config: Config) {
+  constructor(config: BackendConfig) {
     super();
     this.db = {};
     this.client = new LowSync(new MemorySync<Schema>());

@@ -15,10 +15,8 @@ dotenv.config();
 
 function init(config: Config): string[] {
   const errors = [];
-  if (config.backend.driver === 'consul') {
-    if (config.backend.consul === undefined) {
-      errors.push("Consul config section isn't set");
-    }
+  if (config.backend.driver === 'consul' && config.backend.consul === undefined) {
+    errors.push("Consul config section isn't set");
   }
   if (!config.dns.ports.tcp && !config.dns.ports.udp) {
     errors.push('You need specify atleast one of DNS ports, TCP or UDP');
@@ -42,10 +40,10 @@ export async function main(): Promise<void> {
   let backend: Backend;
   switch (cfg.backend.driver) {
     case 'local':
-      backend = new LocalBackend(cfg);
+      backend = new LocalBackend(cfg.backend);
       break;
     case 'memory':
-      backend = new MemoryBackend(cfg);
+      backend = new MemoryBackend(cfg.backend);
       break;
     default:
       throw new Error(`Backend ${cfg.backend.driver} not yet implemented`);

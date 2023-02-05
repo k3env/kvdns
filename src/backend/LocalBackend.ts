@@ -1,4 +1,4 @@
-import { Config } from './../types/AppConfig';
+import { BackendConfig } from './../types/AppConfig';
 import { LowSync, JSONFileSync } from 'lowdb';
 
 import { Backend } from './BackendGeneric';
@@ -10,11 +10,11 @@ export class LocalBackend extends Backend implements Backend {
   private client: LowSync<Schema>;
   private timer: NodeJS.Timeout;
 
-  constructor(config: Config) {
+  constructor(config: BackendConfig) {
     super();
     this.db = {};
-    if (config.backend.local) {
-      this.client = new LowSync(new JSONFileSync<Schema>(config.backend.local.dbLocation));
+    if (config.local) {
+      this.client = new LowSync(new JSONFileSync<Schema>(config.local.dbLocation));
       this.updateDb();
       this.timer = setInterval(() => {
         this.updateDb();

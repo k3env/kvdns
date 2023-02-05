@@ -7,39 +7,39 @@ export interface Config {
   experimental?: ExperimantalConfig;
 }
 
-interface HttpConfig {
+export interface HttpConfig {
   enabled: boolean;
   port: number;
 }
-interface DnsConfig {
+export interface DnsConfig {
   ports: {
     tcp?: number;
     udp?: number;
   };
 }
-interface BackendConfig {
+export interface BackendConfig {
   driver: BackendDriver;
   local?: LocalBackendConfig;
   consul?: ConsulBackendConfig;
 }
-interface ExperimantalConfig {
+export interface ExperimantalConfig {
   ui: boolean;
   recursion: RecursionConfig;
   local: LocalConfig;
 }
-interface ConsulBackendConfig {
+export interface ConsulBackendConfig {
   endpoint: string;
   port?: number;
   kvRoot: string;
 }
-interface LocalBackendConfig {
+export interface LocalBackendConfig {
   dbLocation: string;
 }
-interface RecursionConfig {
+export interface RecursionConfig {
   enabled: boolean;
   upstreams: string[];
 }
-interface LocalConfig {
+export interface LocalConfig {
   enabled: boolean;
   domains: string[];
 }
