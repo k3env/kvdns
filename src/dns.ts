@@ -68,10 +68,8 @@ export async function handleDnsRequest(
     }
   } else {
     ips.push(...backend.resolve(name));
-    if (
-      config.experimental?.recursion.enabled &&
-      noRecursionZones.findIndex((v) => v === q.name.split('.').slice(-1)[0]) !== -1
-    ) {
+    const disallowRecursion = noRecursionZones.findIndex((v) => v === q.name.split('.').slice(-1)[0]) !== -1;
+    if (config.experimental?.recursion.enabled && !disallowRecursion) {
       if (ips.length === 0) {
         ips.push(...(await makeRecursionRequest(q, config.experimental.recursion)));
       }
