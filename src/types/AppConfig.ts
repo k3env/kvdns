@@ -35,6 +35,7 @@ export interface ConsulBackendConfig {
 }
 export interface LocalBackendConfig {
   dbLocation: string;
+  containerWorkaround: boolean;
 }
 export interface RecursionConfig {
   enabled: boolean;

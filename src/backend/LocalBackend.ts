@@ -1,20 +1,27 @@
-import { BackendConfig } from './../types/AppConfig';
-import { LowSync, JSONFileSync } from 'lowdb';
-
+import { BackendConfig, LocalBackendConfig } from './../types/AppConfig';
+import { LowSync, JSONFileSync, MemorySync } from 'lowdb';
 import { Backend } from './BackendGeneric';
 import { NSRecord, NSRecordPayload, Schema } from '../types/Schema';
 import { randomUUID } from 'crypto';
+import { readFileSync, writeFileSync } from 'fs';
 
 export class LocalBackend extends Backend implements Backend {
   protected db: Schema;
   private client: LowSync<Schema>;
   private timer: NodeJS.Timeout;
+  private _config: LocalBackendConfig;
 
   constructor(config: BackendConfig) {
     super();
     this.db = {};
     if (config.local) {
-      this.client = new LowSync(new JSONFileSync<Schema>(config.local.dbLocation));
+      this._config = config.local;
+      if (this._config.containerWorkaround) {
+        this.client = new LowSync(new MemorySync<Schema>());
+        this.client.adapter.write(JSON.parse(readFileSync(this._config.dbLocation).toString('utf8')));
+      } else {
+        this.client = new LowSync(new JSONFileSync<Schema>(config.local.dbLocation));
+      }
       this.updateDb();
       this.timer = setInterval(() => {
         this.updateDb();
@@ -33,6 +40,9 @@ export class LocalBackend extends Backend implements Backend {
   }
   public stop(): void {
     clearInterval(this.timer);
+    if (this._config.containerWorkaround) {
+      writeFileSync(this._config.dbLocation, JSON.stringify(this.db, undefined, 2));
+    }
   }
 
   public addZone(zone: string): boolean {
