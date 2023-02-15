@@ -1,23 +1,17 @@
 import * as express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
-import dns2 from 'dns2';
+import dns2, { DnsResponse } from 'dns2';
 import * as fs from 'fs';
-import { LocalBackend, Backend } from './backend';
 import { Config } from './types';
-import { RecordsApi } from './api/record';
-import { ZoneApi } from './api/zone';
-import { MemoryBackend } from './backend/MemoryBackend';
 import { handleDnsRequest } from './dns';
-import { InfoApi } from './api/info';
+import { V2 } from './api/v2';
+import { Backend } from './backend/Backend';
 
 dotenv.config();
 
 function init(config: Config): string[] {
   const errors = [];
-  if (config.backend.driver === 'consul' && config.backend.consul === undefined) {
-    errors.push("Consul config section isn't set");
-  }
   if (!config.dns.ports.tcp && !config.dns.ports.udp) {
     errors.push('You need specify atleast one of DNS ports, TCP or UDP');
   }
@@ -36,25 +30,17 @@ export async function main(): Promise<void> {
     process.exit(-1);
   }
 
-  console.log(`Loading backend: ${cfg.backend.driver}`);
-  let backend: Backend;
-  switch (cfg.backend.driver) {
-    case 'local':
-      backend = new LocalBackend(cfg.backend);
-      break;
-    case 'memory':
-      backend = new MemoryBackend(cfg.backend);
-      break;
-    default:
-      throw new Error(`Backend ${cfg.backend.driver} not yet implemented`);
-  }
+  console.log(`Loading backend:`);
+  console.log(`-- Adapter: ${cfg.backend.adapter}`);
+  console.log(`-- URI: ${cfg.backend.uri}`);
+  const backend: Backend = new Backend(cfg.backend);
 
   const dnssv = dns2.createServer({
     tcp: cfg.dns.ports.tcp !== undefined,
     udp: cfg.dns.ports.udp !== undefined,
     handle: (req, send, info) => {
       handleDnsRequest(req, backend, cfg, info).then((v) => {
-        send(v);
+        send(v as DnsResponse);
       });
     },
   });
@@ -63,9 +49,9 @@ export async function main(): Promise<void> {
   app.use(express.json());
   app.use(cors({ origin: '*' }));
 
-  app.use('/', new InfoApi(backend).Router);
-  app.use('/api/zone', new ZoneApi(backend).Router);
-  app.use('/api/record', new RecordsApi(backend).Router);
+  app.use('/api/v2/record', new V2.Records(backend).API);
+  app.use('/api/v2/zone', new V2.Zones(backend).API);
+  app.use('/api/v2/zone/:zoneId/record', new V2.Records(backend).API);
 
   app.listen(cfg.http.port, () => {
     console.log(`HTTP server started on port ${cfg.http.port}`);

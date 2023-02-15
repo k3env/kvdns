@@ -1,45 +1,68 @@
-export type Schema = Record<string, NSRecord[]>;
+export interface NSZone {
+  name: string;
+  authority: AuthorityInfo;
+}
 
 export interface NSRecord {
-  id: string;
+  zoneId: string; // Foreign key field
   name: string;
   type: NSRecordType;
   ttl: number;
-  data: NSRecordData;
+  data: NSRecordDataA | NSRecordDataMX | NSRecordDataCNAME | NSRecordDataNS | NSRecordDataSRV | NSRecordDataTXT;
 }
+
+export type UUID = string;
+
+export type ZoneTable = Map<UUID, NSZone>;
+export type RecordTable = Map<UUID, NSRecord>;
+
+export interface AuthorityInfo {
+  primary: string;
+  admin: string;
+  serial: number;
+  refresh: number;
+  retry: number;
+  expiration: number;
+  minimum: number;
+}
+export type NSRecordType = 'A' | 'NS' | 'MX' | 'SRV' | 'TXT' | 'CNAME';
+
+export type ZoneAssociation = { id: string; zone: NSZone };
+export type RecordAssociation = { id: string; record: NSRecord };
+export type LookupInfo = { zone: ZoneAssociation; record: string };
 
 export interface NSRecordPayload {
   name: string;
   type: NSRecordType;
   ttl: number;
-  data: NSRecordData;
+  data: NSRecordDataA | NSRecordDataMX | NSRecordDataCNAME | NSRecordDataNS | NSRecordDataSRV | NSRecordDataTXT;
 }
 
-export type NSRecordType = 'A' | 'NS' | 'MX' | 'SRV' | 'TXT' | 'CNAME';
-
-export interface NSRecordData {
+export interface NSRecordDataA {
   class: 1;
-}
-
-export interface NSRecordDataA extends NSRecordData {
   address: string;
 }
-export interface NSRecordDataNS extends NSRecordData {
+export interface NSRecordDataNS {
+  class: 1;
   ns: string;
 }
-export interface NSRecordDataMX extends NSRecordData {
+export interface NSRecordDataMX {
+  class: 1;
   priority: number;
   exchange: string;
 }
-export interface NSRecordDataTXT extends NSRecordData {
+export interface NSRecordDataTXT {
+  class: 1;
   data: string;
 }
-export interface NSRecordDataSRV extends NSRecordData {
+export interface NSRecordDataSRV {
+  class: 1;
   priority: number;
   weight: number;
   port: number;
   target: string;
 }
-export interface NSRecordDataCNAME extends NSRecordData {
+export interface NSRecordDataCNAME {
+  class: 1;
   domain: string;
 }

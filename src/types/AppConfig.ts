@@ -1,5 +1,3 @@
-export type BackendDriver = 'local' | 'consul' | 'memory';
-
 export interface Config {
   http: HttpConfig;
   dns: DnsConfig;
@@ -10,6 +8,7 @@ export interface Config {
 export interface HttpConfig {
   enabled: boolean;
   port: number;
+  log: boolean;
 }
 export interface DnsConfig {
   ports: {
@@ -21,21 +20,11 @@ export interface DnsConfig {
   local: LocalConfig;
 }
 export interface BackendConfig {
-  driver: BackendDriver;
-  local?: LocalBackendConfig;
-  consul?: ConsulBackendConfig;
+  uri: string;
+  adapter: AdapterConfig;
 }
 export interface ExperimantalConfig {
   ui: boolean;
-}
-export interface ConsulBackendConfig {
-  endpoint: string;
-  port?: number;
-  kvRoot: string;
-}
-export interface LocalBackendConfig {
-  dbLocation: string;
-  containerWorkaround: boolean;
 }
 export interface RecursionConfig {
   enabled: boolean;
@@ -46,3 +35,4 @@ export interface LocalConfig {
   enabled: boolean;
   domains: string[];
 }
+export type AdapterConfig = 'redis' | 'mongodb' | 'mongo' | 'sqlite' | 'postgresql' | 'postgres' | 'mysql' | undefined;
