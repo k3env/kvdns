@@ -13,9 +13,6 @@ export interface NSRecord {
 
 export type UUID = string;
 
-export type ZoneTable = Map<UUID, NSZone>;
-export type RecordTable = Map<UUID, NSRecord>;
-
 export interface AuthorityInfo {
   primary: string;
   admin: string;
@@ -26,17 +23,11 @@ export interface AuthorityInfo {
   minimum: number;
 }
 export type NSRecordType = 'A' | 'NS' | 'MX' | 'SRV' | 'TXT' | 'CNAME';
+export type NSZoneType = 'local' | 'stub' | 'forward';
 
 export type ZoneAssociation = { id: string; zone: NSZone };
 export type RecordAssociation = { id: string; record: NSRecord };
 export type LookupInfo = { zone: ZoneAssociation; record: string };
-
-export interface NSRecordPayload {
-  name: string;
-  type: NSRecordType;
-  ttl: number;
-  data: NSRecordDataA | NSRecordDataMX | NSRecordDataCNAME | NSRecordDataNS | NSRecordDataSRV | NSRecordDataTXT;
-}
 
 export interface NSRecordDataA {
   class: 1;
