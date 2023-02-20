@@ -7,4 +7,5 @@ export interface DnsRequestExtended {
 }
 export interface DnsResponseExtended extends DnsResponse {
   authorities: DnsAnswer[];
+  additionals: DnsAnswer[];
 }
