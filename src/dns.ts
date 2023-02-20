@@ -29,7 +29,8 @@ export async function handleDnsRequest(
   const clientInfo = `${info.address} ${rrclass.find((r) => r.value === q.class)?.key ?? 'IN'} ${qtype.key} ${q.name}`;
   let answerInfo = '';
 
-  const ips: NSRecord[] = [];
+  const answers: NSRecord[] = [];
+  const additionals: NSRecord[] = [];
 
   const noRecursionZones = config.dns.recursion.denyRecursion;
 
@@ -39,24 +40,24 @@ export async function handleDnsRequest(
   if (useLocal) {
     try {
       const addrs = await resolveHosts(name);
-      ips.push(...addrs);
-      answerInfo = `LA:${ips.length}`;
+      answers.push(...addrs);
+      answerInfo = `LA:${answers.length}`;
     } catch (e) {
       answerInfo = `NO DATA`;
     }
   } else {
     const lookupInfo = await backend.lookupSplit(name);
-    ips.push(...(await backend.resolve(name, qtype.key as NSRecordType)));
-    answerInfo = `AA:${ips.length}`;
+    answers.push(...(await backend.resolve(name, qtype.key as NSRecordType)));
+    answerInfo = `AA:${answers.length}`;
     const disallowRecursion = noRecursionZones.findIndex((v) => v === q.name.split('.').slice(-1)[0]) !== -1;
-    if (config.dns.recursion.enabled && !disallowRecursion && ips.length === 0) {
-      ips.push(...(await makeRecursionRequest(q, config.dns.recursion)));
-      answerInfo = `RA:${ips.length}`;
+    if (config.dns.recursion.enabled && !disallowRecursion && answers.length === 0) {
+      answers.push(...(await makeRecursionRequest(q, config.dns.recursion)));
+      answerInfo = `RA:${answers.length}`;
     }
-    const res: DnsAnswer[] = ips.map((rec) => {
+    const res: DnsAnswer[] = answers.map((rec) => {
       return {
-        name,
-        type: qtype.value,
+        name: rec.name,
+        type: rrtype.find((t) => t.key === rec.type)?.value ?? Packet.TYPE.ANY,
         ttl: rec.ttl,
         ...rec.data,
       };
@@ -71,16 +72,23 @@ export async function handleDnsRequest(
         expiration: 600,
         minimum: 600,
       };
-      res[0] = {
+      response.authorities.push({
         type: 6,
         class: 1,
         name: name,
         ttl: 600,
         ...soa,
-      };
-      response.authorities.push(...res);
+      });
     } else {
       response.answers.push(...res);
+      response.additionals.push(
+        ...additionals.map((v) => ({
+          type: rrtype.find((t) => t.key === v.type)?.value ?? Packet.TYPE.ANY,
+          name: v.name,
+          ttl: v.ttl,
+          ...v.data,
+        })),
+      );
     }
   }
   if (config.dns.requestLog) {

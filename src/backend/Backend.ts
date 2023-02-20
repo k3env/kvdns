@@ -77,12 +77,16 @@ export class Backend {
     const _: NSRecord[] = [];
     const _info = await this.lookupSplit(lookup);
     if (_info) {
-      const _recs = (await this.findRecords(_info, type)).map((r) => {
+      const _recs = [...(await this.findRecords(_info, type))].map(async (r) => {
         const _ = r;
-        _.name = lookup;
+        const _z = await this.getZone(_.zoneId);
+        if (_z) {
+          _.name = [_info.record, _z.zone.name].join('.');
+        }
         return _;
       });
-      _.push(..._recs);
+      const _rr = await Promise.all(_recs);
+      _.push(..._rr);
     }
     return _;
   }
