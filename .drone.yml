@@ -1,6 +1,6 @@
 kind: pipeline
 name: default
-type: docker
+type: kubernetes
 steps:
   - name: build
     image: plugins/docker
@@ -15,11 +15,10 @@ steps:
 trigger:
   event:
     - push
-    - pull_request
 ---
 kind: pipeline
 name: default
-type: docker
+type: kubernetes
 steps:
   - name: build
     image: plugins/docker
