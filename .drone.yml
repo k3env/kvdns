@@ -1,5 +1,5 @@
 kind: pipeline
-name: default
+name: dev
 type: kubernetes
 steps:
   - name: build
@@ -17,7 +17,7 @@ trigger:
     - push
 ---
 kind: pipeline
-name: default
+name: release
 type: kubernetes
 steps:
   - name: build
