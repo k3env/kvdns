@@ -17,4 +17,4 @@ jobs:
         calculatedSha=$(git rev-parse --short ${{ github.sha }})
         echo "::set-output name=short_sha::$calculatedSha"
     - name: Build the Docker image
-      run: docker buildx build . --tag k3env/kvdns:${{ steps.vars.outputs.short_sha }}
+      run: docker build . --tag k3env/kvdns:${{ steps.vars.outputs.short_sha }} && docker push k3env/kvdns:${{ steps.vars.outputs.short_sha }}
