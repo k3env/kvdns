@@ -1,6 +1,11 @@
 kind: pipeline
 name: dev
 type: kubernetes
+metadata:
+  dnsConfig:
+    options:
+      - name: ndots
+        value: "1"
 steps:
   - name: build
     image: plugins/docker
@@ -21,6 +26,11 @@ trigger:
 kind: pipeline
 name: release
 type: kubernetes
+metadata:
+  dnsConfig:
+    options:
+      - name: ndots
+        value: "1"
 steps:
   - name: build
     image: plugins/docker
