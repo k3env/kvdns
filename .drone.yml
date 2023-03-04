@@ -7,7 +7,7 @@ dns_config:
       value: "1"
 steps:
   - name: build
-    image: plugins/docker
+    image: plugins/kaniko
     settings:
       username: k3env
       password:
