@@ -1,6 +1,6 @@
 kind: pipeline
 name: dev
-type: docker
+type: kubernetes
 steps:
   - name: build
     image: plugins/docker
@@ -20,7 +20,7 @@ trigger:
 ---
 kind: pipeline
 name: release
-type: docker
+type: kubernetes
 steps:
   - name: build
     image: plugins/docker
