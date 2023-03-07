@@ -4,7 +4,7 @@ import { BackendConfig } from '../types/AppConfig';
 import { LookupInfo, NSRecord, NSRecordType, NSZone, RecordAssociation, UUID, ZoneAssociation } from '../types/Schema';
 
 export class Backend {
-  private db: { zones: Keyv<NSZone>; records: Keyv<NSRecord> };
+  private db: { zones: Keyv<NSZone>; records: Keyv<NSRecord>; schema: 'v3' };
   constructor(config: BackendConfig) {
     const adapterConfig = {
       adapter: config.adapter,
@@ -13,7 +13,11 @@ export class Backend {
     const _zdb = new Keyv<NSZone>({ ...adapterConfig, table: 'zones' });
     const _rdb = new Keyv<NSRecord>({ ...adapterConfig, table: 'records' });
 
-    this.db = { zones: _zdb, records: _rdb };
+    this.db = { zones: _zdb, records: _rdb, schema: 'v3' };
+  }
+
+  public get Schema(): string {
+    return this.db.schema;
   }
 
   private async zoneAccociations(): Promise<ZoneAssociation[]> {
