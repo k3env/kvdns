@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-namespace */
 import { Router } from 'express';
+import { readFileSync } from 'node:fs';
 import { Backend } from '../backend/Backend';
 
 export namespace V2 {
@@ -113,6 +114,21 @@ export namespace V2 {
         } catch (error) {
           res.status(400).send(error as Error);
         }
+      });
+    }
+  }
+  export class Server extends BaseApi {
+    constructor(backend: Backend) {
+      super(backend);
+      this.router = Router({ mergeParams: true });
+      this.router.get('/health', (req, res) => {
+        res.sendStatus(200);
+      });
+      this.router.get('/info', (req, res) => {
+        const cfg = JSON.parse(readFileSync('config.json').toString('utf8'));
+        const pkg = JSON.parse(readFileSync('package.json').toString('utf8'));
+        const { name, version } = pkg;
+        res.send({ ...cfg, name, version, schema: backend.Schema });
       });
     }
   }

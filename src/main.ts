@@ -2,7 +2,7 @@ import * as express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import dns2, { DnsResponse } from 'dns2';
-import * as fs from 'fs';
+import { readFileSync } from 'fs';
 import { Config } from './types';
 import { handleDnsRequest } from './dns';
 import { V2 } from './api/v2';
@@ -19,7 +19,7 @@ function init(config: Config): string[] {
 }
 
 function loadConfig(file = 'config.json'): Config {
-  return JSON.parse(fs.readFileSync(file).toString('utf8'));
+  return JSON.parse(readFileSync(file).toString('utf8'));
 }
 
 export async function main(): Promise<void> {
@@ -52,6 +52,7 @@ export async function main(): Promise<void> {
   app.use('/api/v2/record', new V2.Records(backend).API);
   app.use('/api/v2/zone', new V2.Zones(backend).API);
   app.use('/api/v2/zone/:zoneId/record', new V2.Records(backend).API);
+  app.use('/api/v2', new V2.Server(backend).API);
 
   app.listen(cfg.http.port, () => {
     console.log(`HTTP server started on port ${cfg.http.port}`);
